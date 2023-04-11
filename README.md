@@ -27,7 +27,7 @@ Each file reprents the code that generates my submitted solutions. Some of them,
  - Challenge 2: 6016 length path (optimal) => 1500 points (max: 1500)
  - Challenge 3: 6200 length path (suboptimal) => 1470.968 points (max: 1500)
  - Challenge 4: 2299 length path (optimal) => 2500 points (max: 2500)
- - Challenge 5: 10145 length path => 3500 points (max: 3500)
+ - Challenge 5: 10145 particles => 3500 points (max: 3500)
 
  ## Execution information
 
