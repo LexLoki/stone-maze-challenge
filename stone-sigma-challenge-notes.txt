@@ -1,0 +1,204 @@
+== Stone Automata Challenge
+== Notes (by Pietro Pepe)
+
+Our first implementation is a recursive DFS where we store all the automata states,
+until a certain length (iteration), in an array of matrixes of booleans.
+We also have another (DP) array of matrixes to store if the coordinates in a given iteration
+were already visited.
+
+This worked fine for first phase, but for the second one not really.
+booleans are afterall allocated with 1 byte, so... (see below)
+
+-Memory analysis:
+Row has 2000 booleans + pointer = 2008 bytes
+matrix has 2000 rows + pointer = 4,016,008 bytes = 3.83 MB
+state data has k*matrix + pointer (ignored)
+	= 3.83*k [MB] x2   =   7.66*k [MB]
+Too much memory, might handle only 2k iterations, having 16GB RAM
+
+But we can use BITSET:
+representing through bitsets, each matrix has 2000x2000 = 4M bits = 500kB (0.476837158203125 MB)
+for each iteration, with a dp matrix for visited, we will have 1 MB
+10k memoized iterations => 9.5367431640625 GB
+
+
+*************************************************
+
+
+Challenge 1 2000 x 2000 (OPTIMALLY SOLVED)
+best solution found, running with 6200 iterations
+	- 281 seconds to compute states
+	- 29 seconds for pathfindind
+	- Best solution => steps: 6176
+
+
+*************************************************
+
+
+Challenge 2 2000 x 2000 (OPTIMALLY SOLVED)
+to account for the lifes, we need to store the info with how many lifes we have reached a cell in a given length [LENGTH][ROW][COL] = 3 bits!
+This repalces our "visited" dp bitset matrixes
+we first run without lifes to get a higher bound on iteration size:
+	(- we get 6264 steps)
+if we simply use a char, we would use 8 bits = 1byte, 8 times more space!
+using a bitset<3> [ITERATIONS][2000][2000] results in a big overhead, due to many bitset allocations
+so we do: bitset<3*2000*2000> [ITERATIONS], managing each consecutive triplets of bits
+leaving us closer to a footprint, for each iteration, of:
+	1.4305 MB for the DP lifes bitset
+	0.481837 MB for the rest
+	= 1.9073486328125 MB per ITERATION
+With ITERATIONS < 7000, we should need no more than 13GB!
+
+Now the actual path finding starts to take some time, due to the branching,
+we implement a stop rule to scrape out paths (we should have had it before):
+"current time" + "current manhattan distance to target" > "higher know path" (initialized as ITERATION_LIMIT)
+
+Results:
+(no solution under 5k iterations!)
+Running with 1 life, 10k iterations, we get solution:
+	- 6264 steps
+Running with 6 lifes, 5k iterations we do not get a solution:
+	- Path finding takes 26 minutes
+	- Best we reach is 1713, 1633
+Running with 2 lifes, 6k iterations we get:
+	- Path finding takes 7.85 minutes
+	- Best we reach is 1944, 1981
+Running with 6 lifes, 6200 iterations we get:
+	- 288 seconds of state loading times
+	- Best solution => steps: 6016
+
+
+*************************************************
+
+
+Challenge 3: 2000 x 2000 (bad base solve)
+Base solution without using power/individuality
+	- takes 320 seconds to compute states
+	- takes 121 seconds to pathfind (32 seconds when running on 6300 length)
+	- finds bound base solution => steps: 6200
+
+Trying powers only in close length with ending.
+Limiting the area of the automata to update
+when particle is towards the ending, based on
+how many moves they have left to reach the objective
+(you just need to update the area that might touch you
+as you and the propagation progress) greatly improves
+performance, so we start looking for better solutions:
+Power: 30	Dist: 20 => 6174 42 sec
+Power: 30   Dist: 50 => 6128 40 sec
+Power: 30   Dist: 60 => 6124 35 sec
+
+Unhappily we had bug with these solutions and they
+were deemed in invalid in our validator. So
+we have submitted the default base no power solution
+	=> 6200 steps
+
+
+*************************************************
+
+
+Challenge 4: 2500 x 2500 (OPTIMALLY SOLVED)
+We solve most of the puzzle manually, considering the solution is unique,
+we can rule out many possibility, similarly to sudoku.
+When few entries are missing we output to our solver algorithm
+
+Now we have a grid with 2500 x 2500, a >50% higher memory footprint.
+not a problem since now we do not need to worry about powers or lifes anymore
+In the end we get: 1.490116 MB per iteration
+We run with 8k iterations => 11.64153 GB no success
+
+12k iterations:
+	- takes 753 seconds to compute states
+	- takes 132 seconds for path finding
+	- could not find best solution. got to: 69, 2230....
+	- investigate if puzzle is alright! (maybe run with more iterations)
+
+16k iterations:
+	- 11.64 GB RAM
+	- 1041 seconds to load states / 136 seconds to path find
+	- closer it found was: 69, 2230
+
+To run the max 50k iterations, we would require too much memory, and even
+with virtualization, the OS throws a bad alloc.
+We have decided to paginate in files the states of the automata in blocks of 1k iterations matrixes per files
+this is around 736MB x 50k iterations => 36.8 GB
+Running 50k iterations, keeping 2k iterations on RAM, the program needs to swap when the length goes above or below
+the current range, initially 0-2000. Unfurtunately, 2k makes it access file too frequently...
+We have tried with a 5k iteration range on RAM, and the os could handle just fine the 5k for states + 50k of dp (around 40GB of mem)
+Result:
+	- indeed the higher possible length is 2299.
+	- Runs path finding in 130 seconds
+We have then changed the method to look for 69,2230 coordinates, 10k iterations max:
+	- 134 seconds to path find
+	- got to 69,2230 => 2299 steps (irrelevant to scoring since we cannot reach destination)
+
+We should have probably pre-analyzed the instance. We would, likely, be able to
+observe the grid results in some kind of dead end. But well... we got the the answer anyways
+
+
+*************************************************
+
+
+Challenge 5: 300 x 300
+A significatly smaller board that requires only:
+10.72883605957031 MB per 1000 iterations
+We shall adapt the code to maintain track of players positions and change it to no longer to minimze way out.
+we can make each particle look for the exit one by one, after a given number of particles exists in the maze
+idea:
+	- try consecutively increasing quantities (and if required interval between their spawns)
+	- make particles pursue coordinates equaly separated along matrix,
+	this may we minimize their chance of collision
+
+After much time trying to optimize a swarm approach, I have realized we can
+use the same method from other challenges in this one, by:
+ - trying the longest path from time = 0
+ - get the positions from the path, and "paint" them on our automata bitset matrix
+ - try another path from time = time+1 (and repeat)
+
+We keep trying to draw particles in at each step. As long as they have a path,
+we accept it. This is the GREEDY approach:
+=> 34 minutes to run GREEDY pathfinding with max iterations per particle = 10000
+	Solution: 308 particles, shortest finishing at 1609 length/time
+
+The problem is many particles have a short path that makes our range to draw more particles
+in smaller. Is a drawback: +1 particle or -n potential particles? (usually n is way more than 1)
+So we test only accepting particles in a given time if they have a path ending in at least
+the one from the first particle. This is the REJECTOR approach:
+=> 228.15 minutes to run REJECTOR pathfinding with max iteractions per particle = 10000
+	Solution: 1794 particles, shortest finishing at 9998 length/time
+
+Trying running much more than 10k does not work, unfortunately, due to recursion stack limit.
+To explore higher values, and an approach that would look to use all 50000 moves, we convert our
+recursion implementation to a stack-based. Backtracking with this solution is quite annotying,
+but we did it regardless.
+
+Now the idea is to make the first particle takes the longest possible route: 4998 steps.
+And then keeping trying to draw in new particles at every iteration, using the same
+REJECTOR approach. We also need to implement a iteration limit to stop looking for a path,
+because with this size the DFS can take a huge amount of time.
+
+=> 72 minutes to run DFS-stack-based with minimum length and up to 50k/100k iterations
+	Solution: 9711 particles, shortest at 49998
+
+Our initial DFS prioritizes going DOWN, then RIGHT, then UP, then LEFT, always.
+This prioritizes staying at the bottom of the board.
+We make a small change to switch it to (RIGHT, DOWN, LEFT, UP) at each call.
+So each particle is sent tending towards a different "side" of the board.
+Also, when failing for a feasible path for a given particle, we also try again switching side.
+We call this SIDE SWAP+RETRY
+
+=> 113 minutes to run DFS-stack-based with side swap+retry, with minimum length and up to 50k/100k iterations
+	Solution: 9743 particles, shortest at 49998
+
+The last adjustment we considered was changing RIGHT, DOWN, UP, LEFT, to make it tend
+EVEN MORE to the sides. (is not hard to see why this happens). It worked quite well,
+and was our submitted solution:
+
+[OUR BEST until submission]
+146 minutes to run DFS-stack-based with side-push swap+retry, with minimum length, and up to 50k/100k iterations
+	Solution: 10145 particles, shortest at 4998
+
+We could achieve argably more with a better pathfinding, or simply more time limit per iteraction,
+or even trying other combinations of visit order using heuristics (similarly to A*)
+Particularly we can also try always running both sides, and getting the best (shortest) result
+or swapping through all 4 combinations (side A, side B, sideA+push, sideB+push) (would require way more time though)
