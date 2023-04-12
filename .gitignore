@@ -1,0 +1,11 @@
+*.exe
+*.out
+data
+*.txt
+delivery
+!challenges/input1.txt
+!challenges/input2.txt
+!challenges/input3.txt
+!challenges/input4.txt
+!challenges/input5.txt
+!stone-sigma-challenge-notes.txt
